@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Prof Compta IA</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#0F1F45;--navy2:#1A3370;--red:#E03028;--redl:#FF4D43;
+  --gold:#F0C040;--bg:#F7F6F2;--white:#fff;--surf:#F0EEE8;
+  --txt:#0F1F45;--muted:#6B7490;--bord:rgba(15,31,69,.12);
+  --r:12px;--rs:8px;
+}
+html,body,#root{height:100%;font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt)}
+body{overflow-x:hidden}
+h1,h2,h3,h4,h5{font-family:'Syne',sans-serif}
+button{font-family:'DM Sans',sans-serif;cursor:pointer}
+input,textarea{font-family:'DM Sans',sans-serif}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.fade-in{animation:fadeIn .2s ease}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+/* ═══════════ DONNÉES ═══════════ */
+const CHAPTERS = [
+  { id:0, title:"Les bases", subtitle:"Exercice comptable, types de comptes", tags:["Exercice 12 mois","Comptes de bilan","Comptes de gestion"], steps:["Concept","Analogie","Exercice","Quiz"] },
+  { id:1, title:"Débit / Crédit", subtitle:"Journal comptable, flux emplois/ressources", tags:["Débit = Emploi","Crédit = Ressource","Journal"], steps:["Concept","Analogie","Exercice","Quiz"] },
+  { id:2, title:"Bilan & Résultat", subtitle:"Les deux documents de synthèse", tags:["Actif = Emplois","Passif = Ressources","Charges/Produits"], steps:["Concept","Analogie","Exercice","Quiz"] },
+  { id:3, title:"Amortissements", subtitle:"Dotations, VNC, plan d'amortissement", tags:["Dotation 681","Amort. 28x","VNC"], steps:["Concept","Calculateur","Exercice","Quiz"] },
+  { id:4, title:"Stocks", subtitle:"Variation de stock, marge commerciale", tags:["SI+E=S+SF","Compte 603","Marge"], steps:["Concept","Analogie","Exercice","Quiz"] },
+  { id:5, title:"Affectation & CAF", subtitle:"Dividendes, réserves, autofinancement", tags:["Compte 120/129","Dividendes 457","CAF=RN+DAP"], steps:["Concept","Analogie","Exercice","Quiz"] },
+  { id:6, title:"Analyse financière", subtitle:"FRNG, BFR et Trésorerie Nette", tags:["FRNG","BFR","Trésorerie Nette"], steps:["Concept","Calculateur","Exercice","Quiz"] },
+];
+
+const QUIZ_DATA = [
+  [ {q:"Durée d'un exercice comptable ?", o:["6 mois","12 mois","18 mois","Variable"], a:1, e:"Un exercice = 12 mois (01/01→31/12). À la clôture on calcule le résultat."},
+    {q:"Un compte de gestion est-il reporté d'une année sur l'autre ?", o:["Oui comme le bilan","Non, soldé en fin d'exercice","Seulement si débiteur","Oui si bénéfice"], a:1, e:"Comptes cl.6 et 7 : remis à zéro chaque 31/12. Solde → compte 12 Résultat."},
+    {q:"Le compte 411 – Créances clients est en :", o:["Classe 6","Classe 7","Classe 4","Classe 1"], a:2, e:"Classe 4 = Comptes de tiers. Compte de bilan, solde reporté chaque année."} ],
+  [ {q:"Achat de marchandises au comptant : quel compte est débité ?", o:["512 Banque","707 Ventes","607 Achats","401 Dette FRS"], a:2, e:"Achat entre → débit 607. Banque diminue → crédit 512."},
+    {q:"Règle fondamentale de la partie double :", o:["Actif = Passif","Total Débits = Total Crédits","Produits − Charges = Résultat","Emplois = Ressources"], a:1, e:"Chaque opération : Total Débits = Total Crédits. Toujours équilibré."},
+    {q:"Client règle sa créance 8 000 €. Écriture :", o:["Débit 411 / Crédit 512","Débit 512 / Crédit 411","Débit 401 / Crédit 512","Débit 512 / Crédit 401"], a:1, e:"Encaissement → banque augmente (débit 512), créance annulée (crédit 411)."} ],
+  [ {q:"L'actif du bilan représente :", o:["Les ressources","Ce que l'entreprise doit","Ce que l'entreprise possède","Les capitaux propres"], a:2, e:"Actif = emplois = ce que l'entreprise possède. Passif = ressources."},
+    {q:"Charges > Produits → l'entreprise réalise :", o:["Un bénéfice","Un déficit","Une CAF positive","Des réserves"], a:1, e:"Déficit, inscrit au compte 129."},
+    {q:"La VNC est :", o:["Brut + Amortissements","Brut − Amortissements cumulés","Valeur de marché","Dotation × durée"], a:1, e:"VNC = Brut − Amort. cumulés. Valeur résiduelle au bilan."} ],
+  [ {q:"La dotation aux amortissements entraîne-t-elle un décaissement ?", o:["Oui chaque année","Non, charge calculée","Seulement à la cession","Oui si dégressif"], a:1, e:"Charge calculée = pas de sortie de trésorerie. D'où sa réintégration dans la CAF."},
+    {q:"Machine 30 000 € / 6 ans. VNC au 31/12/N+2 ?", o:["30 000 €","25 000 €","20 000 €","15 000 €"], a:3, e:"Dotation 5 000 €/an. Après 3 ans : amort. cumulé 15 000 €. VNC = 15 000 €."},
+    {q:"L'amortissement au bilan apparaît :", o:["En augmentation de l'actif","En déduction du brut","En charge au CR","En dette"], a:1, e:"Compte 28x en déduction du brut → colonne AMORTISSEMENT → VNC dans colonne NET."} ],
+  [ {q:"SI=20 000, Achats=150 000, SF=30 000. Variation de stock ?", o:["+10 000 (déstockage)","−10 000 (stockage)","0","−30 000"], a:1, e:"Variation = SI − SF = −10 000. SF > SI → stockage → 603 créditeur."},
+    {q:"En cas de déstockage, le compte 603 est :", o:["Créditeur","Débiteur","Nul","Côté produit"], a:1, e:"Déstockage : SF < SI → variation positive → 603 débiteur → augmente les charges."},
+    {q:"La marge commerciale :", o:["Ventes − Charges totales","Ventes − Coût d'achat des mdises vendues","Ventes − Achats bruts","RN + DAP"], a:1, e:"MC = Ventes − CAMV. CAMV = Achats + Variation de stock."} ],
+  [ {q:"La CAF représente :", o:["Le résultat net","Le flux potentiel de trésorerie de l'activité","Le bénéfice distribué","La trésorerie en banque"], a:1, e:"CAF = RN + Dotations. On réintègre les DAP car pas de décaissement."},
+    {q:"Bénéfice 15 000 €, 40% div., 60% réserves. Impact net sur les CP ?", o:["CP +15 000","CP +9 000","CP inchangés","CP −6 000"], a:1, e:"Résultat remplacé par réserves (9 000). Dividendes (6 000) sortent. Net CP : +9 000."},
+    {q:"L'écriture d'affectation du bénéfice débite :", o:["106 Réserves","457 Dividendes","120 Bénéfice","512 Banque"], a:2, e:"Débit 120 (annulation bénéfice) / Crédit 457 (dividendes) + 106 (réserves)."} ],
+  [ {q:"Le FRNG est positif quand :", o:["Actif circ. > Passif circ.","Ressources stables > Actif immobilisé","BFR > Trésorerie","Dettes > Créances"], a:1, e:"FRNG = (CP + Emprunts LT) − Actif immo. Positif = ressources longues couvrent les immos."},
+    {q:"FRNG=80 K€, BFR=110 K€. Trésorerie nette :", o:["+190 K€","+30 K€","−30 K€","−110 K€"], a:2, e:"TN = FRNG − BFR = 80 − 110 = −30 K€ → découvert."},
+    {q:"Pour réduire le BFR :", o:["Acheter plus d'immos","Augmenter le capital","Négocier des délais FRS plus longs","Distribuer plus de dividendes"], a:2, e:"BFR = Stocks + Créances − Dettes. Délais FRS plus longs → dettes augmentent → BFR baisse."} ],
+];
+
+const CONCEPTS_HTML = [
+`<div style="background:#EEF2FF;border-left:3px solid #1A3370;border-radius:0 8px 8px 0;padding:.9rem;margin-bottom:.8rem;font-size:.88rem;line-height:1.65">
+<strong>Un exercice = 12 mois</strong> (01/01 → 31/12).<br/><br/>
+À la <strong>clôture</strong> (31/12), on calcule le résultat et on l'inscrit au bilan. Le bilan de clôture N devient le bilan d'ouverture N+1 — principe d'<em>intangibilité du bilan</em>.
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:.7rem;margin-bottom:.8rem">
+<div style="background:#EEF2FF;padding:.8rem;border-radius:8px;font-size:.83rem;line-height:1.6"><strong>Comptes de Gestion (Cl.6 & 7)</strong><br/>Mesurent l'activité. Soldés à chaque clôture. Solde → compte 12 Résultat Net.</div>
+<div style="background:#FDE8E7;padding:.8rem;border-radius:8px;font-size:.83rem;line-height:1.6"><strong>Comptes de Bilan (Cl.1 à 5)</strong><br/>Représentent le patrimoine. Solde reporté d'un exercice sur l'autre.</div>
+</div>`,
+
+`<div style="background:#EEF2FF;border-left:3px solid #1A3370;border-radius:0 8px 8px 0;padding:.9rem;margin-bottom:.8rem;font-size:.88rem;line-height:1.65">
+Chaque opération = <strong>deux flux symétriques</strong> :<br/>
+• Ce qui <strong>entre</strong> dans l'entreprise → <strong>DÉBIT</strong><br/>
+• Ce qui <strong>sort</strong> pour le financer → <strong>CRÉDIT</strong><br/><br/>
+<strong>Total Débits = Total Crédits — toujours.</strong>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:.7rem;margin-bottom:.9rem">
+<div style="background:#EEF2FF;padding:.8rem;border-radius:8px;font-size:.83rem"><strong>Comptes débiteurs</strong> (Actif, Charges)<br/>+ par le Débit · − par le Crédit<br/><em>Ex : Banque, Stocks, Achats</em></div>
+<div style="background:#FDE8E7;padding:.8rem;border-radius:8px;font-size:.83rem"><strong>Comptes créditeurs</strong> (Passif, Produits)<br/>+ par le Crédit · − par le Débit<br/><em>Ex : Capital, Dettes, Ventes</em></div>
+</div>
+<p style="font-size:.79rem;color:#6B7490;margin-bottom:.4rem">Achat marchandises 15 000 € comptant :</p>
+<table style="width:100%;border-collapse:collapse;font-size:.82rem;margin-bottom:.8rem"><thead><tr style="background:#0F1F45;color:#fff"><th style="padding:.4rem .65rem;text-align:left">N° PCG</th><th style="padding:.4rem .65rem;text-align:left">Libellé</th><th style="padding:.4rem .65rem">Débit</th><th style="padding:.4rem .65rem">Crédit</th></tr></thead><tbody>
+<tr><td style="padding:.4rem .65rem;border-bottom:1px solid #eee">607</td><td style="padding:.4rem .65rem;border-bottom:1px solid #eee">Achat de marchandises</td><td style="padding:.4rem .65rem;border-bottom:1px solid #eee;color:#1a5cb5;font-weight:600;text-align:right">15 000</td><td style="padding:.4rem .65rem;border-bottom:1px solid #eee"></td></tr>
+<tr><td style="padding:.4rem .65rem">512</td><td style="padding:.4rem .65rem">Banque</td><td style="padding:.4rem .65rem"></td><td style="padding:.4rem .65rem;color:#E03028;font-weight:600;text-align:right">15 000</td></tr>
+</tbody></table>`,
+
+`<div style="background:#EEF2FF;border-left:3px solid #1A3370;border-radius:0 8px 8px 0;padding:.9rem;margin-bottom:.8rem;font-size:.88rem;line-height:1.65">
+Bilan = <strong>photo du patrimoine</strong> à un instant T. <strong>Total Actif Net = Total Passif</strong>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:.7rem;margin-bottom:.9rem">
+<div style="border-radius:8px;overflow:hidden;font-size:.82rem"><div style="background:#0F1F45;color:#fff;padding:.45rem .7rem;font-weight:600">ACTIF = Emplois</div><div style="background:#EEF2FF;padding:.75rem;line-height:2">• Immobilisations nettes<br/>• Stocks (cl.3)<br/>• Créances clients (411)<br/>• Banque (512)</div></div>
+<div style="border-radius:8px;overflow:hidden;font-size:.82rem"><div style="background:#E03028;color:#fff;padding:.45rem .7rem;font-weight:600">PASSIF = Ressources</div><div style="background:#FDE8E7;padding:.75rem;line-height:2">• Capital + Réserves<br/>• Résultat Net (±)<br/>• Emprunt (164)<br/>• Dettes FRS (401)</div></div>
+</div>
+<div style="background:#EEF2FF;border-left:3px solid #1A3370;border-radius:0 8px 8px 0;padding:.9rem;font-size:.88rem;line-height:1.65">
+<strong>Résultat Net = Produits (Cl.7) − Charges (Cl.6)</strong><br/><br/>
+Produits > Charges → <strong>Bénéfice</strong> (compte 120)<br/>
+Charges > Produits → <strong>Déficit</strong> (compte 129)
+</div>`,
+
+`<div style="background:#EEF2FF;border-left:3px solid #1A3370;border-radius:0 8px 8px 0;padding:.9rem;margin-bottom:.8rem;font-size:.88rem;line-height:1.65">
+Une immobilisation perd de la valeur avec le temps.<br/><br/>
+<strong>Dotation annuelle linéaire = Valeur d'origine ÷ Durée de vie</strong>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:.7rem;margin-bottom:.8rem">
+<div style="background:#EEF2FF;padding:.8rem;border-radius:8px;font-size:.83rem;line-height:1.6"><strong>Compte de Résultat</strong><br/>Dotation (681) = charge calculée<br/>→ Diminue le résultat<br/>⚠️ Pas de sortie de trésorerie</div>
+<div style="background:#FDE8E7;padding:.8rem;border-radius:8px;font-size:.83rem;line-height:1.6"><strong>Bilan</strong><br/>Amortissement cumulé (28x)<br/>→ Déduit de la valeur brute<br/>VNC = Brut − Amort. cumulé</div>
+</div>
+<div style="background:#FFF3E0;border-left:3px solid #E03028;border-radius:0 8px 8px 0;padding:.9rem;font-size:.88rem;line-height:1.65">
+<span style="font-size:.67rem;font-weight:700;color:#E03028;text-transform:uppercase;letter-spacing:.07em;display:block;margin-bottom:.35rem">Exemple</span>
+Machine 10 000 € · 4 ans → Dotation = 2 500 €/an · VNC fin N+2 = <strong>2 500 €</strong>
+</div>`,
+
+`<div style="background:#0F1F45;color:#fff;text-align:center;padding:.8rem 1rem;border-radius:8px;font-family:'Syne',sans-serif;font-weight:700;font-size:.93rem;margin-bottom:.8rem;letter-spacing:.02em">
+SI + Entrées = Sorties + SF
+</div>
+<div style="background:#EEF2FF;border-left:3px solid #1A3370;border-radius:0 8px 8px 0;padding:.9rem;margin-bottom:.8rem;font-size:.88rem;line-height:1.65">
+<strong>Variation de stock (Compte 603) = SI − SF</strong><br/><br/>
+• SF &gt; SI → Stockage → 603 négatif → réduit les charges<br/>
+• SF &lt; SI → Déstockage → 603 positif → augmente les charges
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:.7rem">
+<div style="background:#E4F5EC;padding:.8rem;border-radius:8px;font-size:.83rem;line-height:1.6"><strong>Stockage (SF &gt; SI)</strong><br/>SI 15 000 · SF 35 000<br/>Variation = −20 000<br/>603 créditeur<br/>Débit 37 / Crédit 6037</div>
+<div style="background:#FDE8E7;padding:.8rem;border-radius:8px;font-size:.83rem;line-height:1.6"><strong>Déstockage (SF &lt; SI)</strong><br/>SI 35 000 · SF 25 000<br/>Variation = +10 000<br/>603 débiteur<br/>Débit 6037 / Crédit 37</div>
+</div>`,
+
+`<div style="background:#EEF2FF;border-left:3px solid #1A3370;border-radius:0 8px 8px 0;padding:.9rem;margin-bottom:.8rem;font-size:.88rem;line-height:1.65">
+L'AG décide comment utiliser le bénéfice :<br/>
+• Part → <strong>Dividendes</strong> (compte 457) · le reste → <strong>Réserves</strong> (compte 106)
+</div>
+<table style="width:100%;border-collapse:collapse;font-size:.82rem;margin-bottom:.9rem"><thead><tr style="background:#0F1F45;color:#fff"><th style="padding:.4rem .65rem;text-align:left">N°</th><th style="padding:.4rem .65rem;text-align:left">Libellé</th><th style="padding:.4rem .65rem">Débit</th><th style="padding:.4rem .65rem">Crédit</th></tr></thead><tbody>
+<tr><td style="padding:.4rem .65rem;border-bottom:1px solid #eee">120</td><td style="padding:.4rem .65rem;border-bottom:1px solid #eee">Annulation Résultat bénéficiaire</td><td style="padding:.4rem .65rem;border-bottom:1px solid #eee;color:#1a5cb5;font-weight:600;text-align:right">20 000</td><td style="padding:.4rem .65rem;border-bottom:1px solid #eee"></td></tr>
+<tr><td style="padding:.4rem .65rem;border-bottom:1px solid #eee">457</td><td style="padding:.4rem .65rem;border-bottom:1px solid #eee">Dividendes à payer</td><td style="padding:.4rem .65rem;border-bottom:1px solid #eee"></td><td style="padding:.4rem .65rem;border-bottom:1px solid #eee;color:#E03028;font-weight:600;text-align:right">12 000</td></tr>
+<tr><td style="padding:.4rem .65rem">106</td><td style="padding:.4rem .65rem">Augmentation des Réserves</td><td style="padding:.4rem .65rem"></td><td style="padding:.4rem .65rem;color:#E03028;font-weight:600;text-align:right">8 000</td></tr>
+</tbody></table>
+<div style="background:#0F1F45;color:#fff;text-align:center;padding:.8rem 1rem;border-radius:8px;font-family:'Syne',sans-serif;font-weight:700;font-size:.93rem;margin-bottom:.8rem">
+CAF = Résultat Net + Dotations aux amortissements
+</div>
+<div style="background:#EEF2FF;border-left:3px solid #1A3370;border-radius:0 8px 8px 0;padding:.9rem;font-size:.88rem;line-height:1.65">
+Les DAP sont réintégrées car elles ne génèrent aucun décaissement. La CAF est toujours ≥ au résultat net.
+</div>`,
+
+`<div style="background:#0F1F45;color:#fff;text-align:center;padding:.75rem;border-radius:8px;font-family:'Syne',sans-serif;font-weight:700;font-size:.88rem;margin-bottom:.55rem">FRNG = (Capitaux Propres + Emprunt LT) − Actif Immobilisé</div>
+<div style="background:#E03028;color:#fff;text-align:center;padding:.75rem;border-radius:8px;font-family:'Syne',sans-serif;font-weight:700;font-size:.88rem;margin-bottom:.55rem">BFR = Stocks + Créances − Dettes fournisseurs</div>
+<div style="background:#1e6e45;color:#fff;text-align:center;padding:.75rem;border-radius:8px;font-family:'Syne',sans-serif;font-weight:700;font-size:.88rem;margin-bottom:.85rem">Trésorerie Nette = FRNG − BFR</div>
+<div style="background:#EEF2FF;border-left:3px solid #1A3370;border-radius:0 8px 8px 0;padding:.9rem;font-size:.88rem;line-height:1.65">
+<strong>FRNG</strong> : excédent de ressources stables. Doit être positif pour couvrir le BFR.<br/>
+<strong>BFR</strong> : décalage encaissements / décaissements.<br/>
+<strong>TN &gt; 0</strong> → entreprise saine · <strong>TN &lt; 0</strong> → découvert bancaire
+</div>`,
+];
+
+const ANALOGIES = [
+  { title:"Le carnet de santé", body:`Ton <strong>carnet de santé</strong> = le bilan (patrimoine reporté chaque année).<br/>Ton <strong>agenda médical de l'année</strong> = les comptes de gestion (remis à zéro).<br/><br/>Chaque 31/12, tu fermes l'agenda, tu calcules le "bilan de santé annuel" (résultat) et tu l'inscrits dans le carnet. L'année suivante : nouvel agenda vierge, carnet qui continue.` },
+  { title:"Le portefeuille", body:`Ton portefeuille = compte Banque 512.<br/><br/>Tu reçois de l'argent → il grossit → <strong>Débit Banque ✅</strong><br/>Tu dépenses → il se vide → <strong>Crédit Banque ✅</strong><br/><br/>⚠️ Sur ton relevé bancaire, un dépôt apparaît au CRÉDIT — la banque tient <em>sa propre compta</em> où ton dépôt = une dette envers toi. Toujours se positionner du point de vue de l'entreprise qu'on comptabilise.` },
+  { title:"La maison et le relevé annuel", body:`<strong>Bilan</strong> = inventaire de ta maison à un instant T.<br/>Ce que tu possèdes (meubles, voiture, épargne) = <strong>Actif</strong>.<br/>Ce que tu dois (crédit immo) + tes apports = <strong>Passif</strong>.<br/><br/><strong>Compte de Résultat</strong> = ton relevé annuel revenus/dépenses.<br/>Revenus > Dépenses → bénéfice qui enrichit ton bilan l'an prochain.` },
+  null,
+  { title:"Le frigo", body:`Frigo début de mois : 50 € (SI). Achats : 200 €. Consommations : 180 €. Fin de mois : 70 € (SF).<br/><br/>50 + 200 = 180 + 70 = 250 ✅<br/><br/>Frigo grossi (50 → 70) = <strong>Stockage de 20 €</strong>. Ces 20 € ont été achetés mais pas consommés → retirés des charges et inscrits au bilan (actif).` },
+  { title:"Le salaire et la dépréciation", body:`Tu gagnes 2 000 € nets. Tu "passes en charge" mentalement 500 € de dépréciation de ta voiture, mais ça ne sort pas de ton compte. Ton vrai cash disponible reste 2 000 €.<br/><br/>La CAF c'est pareil : le résultat net sous-estime les liquidités car il a déduit les dotations — charges sans décaissement. En les réintégrant, on retrouve le vrai flux potentiel.` },
+  null,
+];
+
+const EXERCISES = [
+  { instr:"Classe chaque compte (Bilan ou Gestion) et justifie.", data:"1. Achat marchandises (607)\n2. Emprunt bancaire (164)\n3. Ventes (707)\n4. Créances clients (411)\n5. Dotation amort. (681)\n6. Stock (37)\n7. Banque (512)\n8. Charges financières (661)", corr:"<strong>Comptes de Gestion :</strong><br/>607 – Achat → Cl.6 Charge · 707 – Ventes → Cl.7 Produit · 681 – DAP → Cl.6 Charge · 661 – CF → Cl.6 Charge<br/><br/><strong>Comptes de Bilan :</strong><br/>164 – Emprunt → Cl.1 Passif · 411 – Créances → Cl.4 Actif circ. · 37 – Stock → Cl.3 Actif circ. · 512 – Banque → Cl.5 Trésorerie" },
+  { instr:"Enregistre les 4 opérations au journal (N° PCG, libellé, débit, crédit).", data:"Op.1 : Achat machine 80 000 € comptant\nOp.2 : Vente marchandises 35 000 € à crédit (30 j)\nOp.3 : Emprunt 100 000 € versé immédiatement\nOp.4 : Règlement dette fournisseur 12 000 € par virement", corr:"<strong>Op.1 :</strong> Débit 215 Matériel 80 000 / Crédit 512 Banque 80 000<br/><strong>Op.2 :</strong> Débit 411 Créances 35 000 / Crédit 707 Ventes 35 000<br/><strong>Op.3 :</strong> Débit 512 Banque 100 000 / Crédit 164 Emprunt 100 000<br/><strong>Op.4 :</strong> Débit 401 Dette FRS 12 000 / Crédit 512 Banque 12 000" },
+  { instr:"Calcule le résultat net et présente le bilan simplifié.", data:"Capital : 150 000 · Emprunt : 80 000 · Matériel brut : 120 000 · Amort. cumulé : 30 000\nStocks : 25 000 · Créances : 18 000 · Banque : 14 000 · Dettes FRS : 22 000 · Réserves : 35 000\nCharges : Achats 180 000 · Services 15 000 · DAP 10 000 · CF 4 000\nProduits : Ventes 230 000", corr:"Charges = 209 000 € · Produits = 230 000 € → <strong>Résultat = +21 000 € (bénéfice)</strong><br/><br/>Actif : Matériel net 90 000 · Stocks 25 000 · Créances 18 000 · Banque 14 000 = 147 000 €<br/>Passif : Capital 150 000 · Réserves 35 000 · Résultat 21 000 · Emprunt 80 000 − Dettes FRS 22 000 → équilibre attendu avec flux complets." },
+  { instr:"Réponds aux 4 questions sur ce plan d'amortissement.", data:"Machine : 48 000 € · Mise en service : 01/01/N · Amortissement linéaire · Durée : 8 ans\n1. Dotation annuelle ?\n2. VNC au 31/12/N+2 ?\n3. Amortissement cumulé au 31/12/N+7 ?\n4. Impact sur résultat et trésorerie ?", corr:"1. Dotation = 48 000 ÷ 8 = <strong>6 000 €/an</strong><br/>2. VNC N+2 : 3 ans × 6 000 = 18 000 → VNC = <strong>30 000 €</strong><br/>3. Amort. N+7 : 8 × 6 000 = <strong>48 000 €</strong> → VNC = 0<br/>4. Impact résultat : −6 000 € (charge) · Impact trésorerie : <strong>aucun</strong>" },
+  { instr:"Calcule la variation de stock, enregistre l'écriture, calcule la marge commerciale.", data:"SI = 28 000 · Achats N = 320 000 · Ventes N = 420 000 · SF = 38 000", corr:"Variation = SI − SF = −10 000 → <strong>Stockage</strong><br/>Écriture : Débit 37 (Stocks) 10 000 / Crédit 6037 (Variation stock) 10 000<br/>CAMV = 320 000 + (−10 000) = 310 000 €<br/><strong>Marge commerciale = 420 000 − 310 000 = 110 000 € (taux 35,5 %)</strong>" },
+  { instr:"Calcule la CAF, l'affectation et enregistre l'écriture.", data:"Résultat net : 45 000 € · DAP : 12 000 €\nAG : 60 % dividendes · 40 % réserves", corr:"CAF = 45 000 + 12 000 = <strong>57 000 €</strong><br/>Dividendes = 27 000 € · Réserves = 18 000 €<br/>Écriture : Débit 120 (45 000) / Crédit 457 Dividendes (27 000) + Crédit 106 Réserves (18 000)<br/>Impact CP : résultat remplacé par réserves (+18 000). Dividendes sortent (−27 000)." },
+  { instr:"Calcule FRNG, BFR, TN et formule des recommandations.", data:"Bilan (K€) : Actif Immo. net 820 · Stocks 110 · Créances 75 · Tréso. 30\nCP + Résultat : 645 · Emprunt LT : 320 · Dettes FRS : 55 · Dettes fisc/soc : 15", corr:"FRNG = (645+320) − 820 = <strong>145 K€ ✅</strong><br/>BFR = 110+75 − (55+15) = <strong>115 K€</strong><br/>TN = 145 − 115 = <strong>+30 K€ ✅</strong> (= trésorerie du bilan)<br/>Recommandations : délais FRS plus longs · réduire stocks · accélérer encaissements · limiter dividendes" },
+];
+
+/* ═══════════ STYLES ═══════════ */
+const S = {
+  app: { display:'flex', height:'100vh', overflow:'hidden', position:'relative' },
+  sidebar: { width:256, background:'#0F1F45', display:'flex', flexDirection:'column', height:'100vh', overflow:'auto', flexShrink:0 },
+  sidebarMobile: { position:'fixed', inset:0, zIndex:100, display:'flex' },
+  overlay: { position:'fixed', inset:0, background:'rgba(0,0,0,.5)', zIndex:99 },
+  main: { flex:1, display:'flex', flexDirection:'column', overflow:'hidden' },
+  mobHeader: { background:'#0F1F45', padding:'.8rem 1rem', display:'flex', alignItems:'center', gap:10 },
+  topbar: { background:'#fff', borderBottom:'1px solid rgba(15,31,69,.12)', padding:'.7rem 1.4rem', display:'flex', alignItems:'center', gap:8, flexShrink:0 },
+  content: { flex:1, overflowY:'auto' },
+  card: { background:'#fff', borderRadius:12, border:'1px solid rgba(15,31,69,.12)', padding:'1.25rem', marginBottom:'.85rem' },
+  btn: (v) => ({
+    padding: v==='sm' ? '.35rem .8rem' : '.5rem 1.1rem',
+    borderRadius:8, border:'none', fontSize: v==='sm' ? '.78rem' : '.83rem',
+    fontWeight:500, cursor:'pointer', display:'inline-flex', alignItems:'center', gap:5, transition:'all .15s'
+  }),
+};
+
+/* ═══════════ COMPOSANTS UTILITAIRES ═══════════ */
+function Btn({ variant='primary', size, onClick, children, disabled, style={} }) {
+  const colors = { primary:{bg:'#0F1F45',color:'#fff'}, danger:{bg:'#E03028',color:'#fff'}, outline:{bg:'#fff',color:'#0F1F45',border:'1.5px solid rgba(15,31,69,.2)'} };
+  const c = colors[variant] || colors.primary;
+  return (
+    <button onClick={onClick} disabled={disabled}
+      style={{...S.btn(size), background:disabled?'#ccc':c.bg, color:disabled?'#888':c.color, border:c.border||'none', opacity:disabled?.7:1, ...style}}>
+      {children}
+    </button>
+  );
+}
+
+function Html({ html }) {
+  return <div dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+/* ═══════════ CALCULATEUR AMORT ═══════════ */
+function AmortCalc() {
+  const [val, setVal] = useState(60000);
+  const [dur, setDur] = useState(5);
+  const [rows, setRows] = useState([]);
+  const calc = () => {
+    const dot = val / dur;
+    setRows(Array.from({length:dur}, (_,i) => ({
+      ex: i===0 ? 'N' : `N+${i}`,
+      dot: dot,
+      cum: dot*(i+1),
+      vnc: Math.max(0, val - dot*(i+1))
+    })));
+  };
+  const fmt = n => n.toLocaleString('fr-FR') + ' €';
+  return (
+    <div>
+      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.6rem', marginBottom:'.8rem'}}>
+        {[['Valeur d\'origine (€)', val, setVal], ['Durée de vie (ans)', dur, setDur]].map(([lbl,v,fn],i) => (
+          <div key={i}>
+            <label style={{fontSize:'.74rem',color:'#6B7490',display:'block',marginBottom:'.22rem'}}>{lbl}</label>
+            <input type="number" value={v} min="1" max={i?30:undefined}
+              onChange={e=>fn(Number(e.target.value))}
+              style={{width:'100%',padding:'.43rem .68rem',border:'1.5px solid rgba(15,31,69,.12)',borderRadius:8,fontSize:'.87rem'}}/>
+          </div>
+        ))}
+      </div>
+      <Btn onClick={calc} size="sm">Calculer</Btn>
+      {rows.length > 0 && (
+        <div style={{marginTop:'.85rem',overflowX:'auto'}}>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.8rem'}}>
+            <thead><tr style={{background:'#F0EEE8'}}>
+              {['Exercice','Dotation','Amort. cumulé','VNC'].map(h=><th key={h} style={{padding:'.4rem .55rem',textAlign:'center',fontWeight:600,border:'1px solid rgba(15,31,69,.1)',fontSize:'.74rem'}}>{h}</th>)}
+            </tr></thead>
+            <tbody>{rows.map((r,i)=>(
+              <tr key={i} style={{background:i%2?'#fafafa':'#fff'}}>
+                <td style={{padding:'.38rem .55rem',textAlign:'center',border:'1px solid #eee'}}>{r.ex}</td>
+                <td style={{padding:'.38rem .55rem',textAlign:'center',border:'1px solid #eee'}}>{fmt(r.dot)}</td>
+                <td style={{padding:'.38rem .55rem',textAlign:'center',border:'1px solid #eee'}}>{fmt(r.cum)}</td>
+                <td style={{padding:'.38rem .55rem',textAlign:'center',border:'1px solid #eee',fontWeight:600}}>{fmt(r.vnc)}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+          <p style={{fontSize:'.77rem',color:'#6B7490',marginTop:'.45rem'}}>Dotation annuelle : <strong>{fmt(val/dur)}</strong></p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════ CALCULATEUR FRNG ═══════════ */
+function FRNGCalc() {
+  const [v, setV] = useState({cp:500000,emp:200000,immo:550000,st:80000,cr:60000,det:40000});
+  const [res, setRes] = useState(null);
+  const fields = [['Capitaux Propres (€)','cp'],['Emprunt LT (€)','emp'],['Actif Immobilisé net (€)','immo'],['Stocks (€)','st'],['Créances clients (€)','cr'],['Dettes fournisseurs (€)','det']];
+  const calc = () => {
+    const frng = (v.cp+v.emp)-v.immo, bfr = v.st+v.cr-v.det, tn = frng-bfr;
+    setRes({frng,bfr,tn});
+  };
+  const fmt = n => (n>=0?'+':'')+n.toLocaleString('fr-FR')+' €';
+  const col = n => n>=0 ? '#1e6e45' : '#c41f1f';
+  return (
+    <div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'.6rem',marginBottom:'.8rem'}}>
+        {fields.map(([lbl,k]) => (
+          <div key={k}>
+            <label style={{fontSize:'.74rem',color:'#6B7490',display:'block',marginBottom:'.22rem'}}>{lbl}</label>
+            <input type="number" value={v[k]} min="0"
+              onChange={e=>setV(prev=>({...prev,[k]:Number(e.target.value)}))}
+              style={{width:'100%',padding:'.43rem .68rem',border:'1.5px solid rgba(15,31,69,.12)',borderRadius:8,fontSize:'.87rem'}}/>
+          </div>
+        ))}
+      </div>
+      <Btn onClick={calc} size="sm">Calculer</Btn>
+      {res && (
+        <div style={{marginTop:'.85rem'}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'.6rem',marginBottom:'.65rem'}}>
+            {[['FRNG','(CP+Emp)−Immo',res.frng],['BFR','Stocks+Créances−Dettes',res.bfr],['Trésorerie Nette','FRNG−BFR',res.tn]].map(([lbl,sub,n],i)=>(
+              <div key={i} style={{background:'#fff',border:`${i===2?2:1}px solid ${i===2?col(n):'rgba(15,31,69,.12)'}`,borderRadius:8,padding:'.8rem',textAlign:'center'}}>
+                <div style={{fontSize:'.69rem',color:'#6B7490',marginBottom:'.28rem'}}>{lbl}</div>
+                <div style={{fontFamily:'Syne,sans-serif',fontWeight:800,fontSize:'1.2rem',color:i===1?'#c47a1e':col(n)}}>{fmt(n)}</div>
+                <div style={{fontSize:'.64rem',color:'#6B7490',marginTop:'.18rem'}}>{sub}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{fontSize:'.79rem',padding:'.52rem .75rem',borderRadius:8,background:res.tn>=0?'#e4f5ec':'#fde8e7',color:col(res.tn)}}>
+            {res.tn>=0 ? '✅ Trésorerie positive : le FRNG couvre le BFR.' : '⚠️ Découvert : BFR supérieur au FRNG.'}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════ QUIZ COMPONENT ═══════════ */
+function QuizPanel({ chIdx, savedAnswers, onAnswer, onDone }) {
+  const data = QUIZ_DATA[chIdx];
+  const [answers, setAnswers] = useState(savedAnswers || {});
+
+  const pick = (qi, oi) => {
+    if (answers[qi] !== undefined) return;
+    const next = { ...answers, [qi]: oi };
+    setAnswers(next);
+    onAnswer(next);
+    if (Object.keys(next).length === data.length) onDone(next);
+  };
+
+  const score = Object.keys(answers).filter(qi => answers[qi] === data[qi].a).length;
+
+  return (
+    <div>
+      {data.map((q, qi) => {
+        const picked = answers[qi];
+        return (
+          <div key={qi} style={{marginBottom:'1.25rem',paddingBottom:'1.25rem',borderBottom: qi<data.length-1?'1px solid rgba(15,31,69,.08)':'none'}}>
+            <p style={{fontSize:'.9rem',fontWeight:500,marginBottom:'.8rem',lineHeight:1.5}}>{qi+1}. {q.q}</p>
+            <div style={{display:'flex',flexDirection:'column',gap:'.42rem',marginBottom:'.75rem'}}>
+              {q.o.map((opt,oi) => {
+                let bg='#fff', border='1.5px solid rgba(15,31,69,.12)', color='#0F1F45';
+                if (picked !== undefined) {
+                  if (oi === q.a) { bg='#e4f5ec'; border='1.5px solid #2d8a4e'; color='#1a5c35'; }
+                  else if (oi === picked) { bg='#fde8e7'; border='1.5px solid #E03028'; color='#8a1f1f'; }
+                }
+                return (
+                  <button key={oi} onClick={() => pick(qi,oi)} disabled={picked!==undefined}
+                    style={{textAlign:'left',padding:'.62rem .85rem',borderRadius:8,border,background:bg,cursor:picked!==undefined?'default':'pointer',fontSize:'.84rem',color,transition:'all .15s',width:'100%',opacity:picked!==undefined&&oi!==q.a&&oi!==picked?.5:1}}>
+                    {opt}
+                  </button>
+                );
+              })}
+            </div>
+            {picked !== undefined && (
+              <div style={{padding:'.62rem .85rem',borderRadius:8,fontSize:'.82rem',lineHeight:1.5,background:picked===q.a?'#e4f5ec':'#fde8e7',borderLeft:`3px solid ${picked===q.a?'#2d8a4e':'#E03028'}`,color:picked===q.a?'#1a5c35':'#8a1f1f'}}>
+                {picked===q.a?'✅':'❌'} {q.e}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {Object.keys(answers).length === data.length && (
+        <div style={{textAlign:'center',padding:'1.2rem',background:'#f9f9f9',borderRadius:8,marginTop:'.5rem'}}>
+          <div style={{fontFamily:'Syne,sans-serif',fontWeight:800,fontSize:'2.4rem',color:score>=2?'#1e6e45':score===1?'#c47a1e':'#c41f1f'}}>{score}/{data.length}</div>
+          <div style={{fontSize:'.84rem',color:'#6B7490',marginTop:'.2rem'}}>{Math.round(score/data.length*100)} % de bonnes réponses</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════ CHAT IA ═══════════ */
+const SYS_PROMPT = `Tu es un tuteur expert en comptabilité générale pour étudiants universitaires (L1/L2). Tu maîtrises : exercice comptable, partie double, bilan, compte de résultat, amortissements, stocks, affectation du résultat, CAF, FRNG, BFR. Réponds en français, de façon claire et pédagogique. Utilise des analogies concrètes. Montre les étapes pour les calculs. Sois concis (max 250 mots sauf calcul détaillé nécessaire). Encourage l'étudiant.`;
+
+function ChatModal({ isOpen, onClose, curChapter, initialMsg }) {
+  const [msgs, setMsgs] = useState([{ role:'ai', text:'Bonjour ! Je suis ton tuteur en comptabilité. Pose-moi n\'importe quelle question — j\'explique, je donne des exemples chiffrés, ou je crée un exercice supplémentaire. 📚' }]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [history, setHistory] = useState([]);
+  const msgsRef = useRef(null);
+  const inputRef = useRef(null);
+  const initialMsgSent = useRef(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => inputRef.current?.focus(), 150);
+      if (initialMsg && !initialMsgSent.current) {
+        initialMsgSent.current = true;
+        setInput(initialMsg);
+      }
+    }
+  }, [isOpen, initialMsg]);
+
+  useEffect(() => {
+    if (msgsRef.current) msgsRef.current.scrollTop = msgsRef.current.scrollHeight;
+  }, [msgs]);
+
+  const send = async (msgText) => {
+    const txt = msgText || input.trim();
+    if (!txt || loading) return;
+    setInput('');
+    const userMsg = { role:'user', text: txt };
+    setMsgs(prev => [...prev, userMsg]);
+    setLoading(true);
+    const newHistory = [...history, { role:'user', content: txt }];
+    setHistory(newHistory);
+    const ctx = curChapter >= 0 ? `L'étudiant est sur : Chapitre ${curChapter+1} – ${CHAPTERS[curChapter].title}.` : `L'étudiant consulte la vue d'ensemble.`;
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          model:'claude-sonnet-4-20250514',
+          max_tokens:800,
+          system: SYS_PROMPT + '\n\n' + ctx,
+          messages: newHistory,
+        }),
+      });
+      if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.error?.message || 'HTTP '+res.status); }
+      const data = await res.json();
+      const reply = data.content?.[0]?.text || 'Pas de réponse.';
+      setHistory(prev => [...prev, { role:'assistant', content: reply }]);
+      setMsgs(prev => [...prev, { role:'ai', text: reply }]);
+    } catch(e) {
+      setMsgs(prev => [...prev, { role:'ai', text:`⚠️ **Connexion impossible.**\n\nL'IA fonctionne uniquement quand l'app est hébergée sur internet. Dépose le fichier sur **netlify.com/drop** pour activer le tuteur. (${e.message})` }]);
+    }
+    setLoading(false);
+  };
+
+  const qps = curChapter >= 0
+    ? ['Explique ce concept simplement','Donne un exemple chiffré','Génère un exercice supplémentaire','Erreurs classiques ?']
+    : ['Par où commencer ?','Explique la partie double','Différence bilan / résultat ?','Comment calculer la CAF ?'];
+
+  const fmtText = t => t.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\*(.*?)\*/g,'<em>$1</em>').replace(/\n/g,'<br/>');
+
+  if (!isOpen) return null;
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(15,31,69,.55)',zIndex:200,display:'flex',alignItems:'flex-end',justifyContent:'center',backdropFilter:'blur(3px)'}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={{background:'#fff',borderRadius:'14px 14px 0 0',width:'100%',maxWidth:660,display:'flex',flexDirection:'column',height:'82vh',maxHeight:640,animation:'slideUp .25s ease'}} onClick={e=>e.stopPropagation()}>
+        <div style={{padding:'.9rem 1.1rem',borderBottom:'1px solid rgba(15,31,69,.12)',display:'flex',alignItems:'center',gap:9}}>
+          <div style={{width:10,height:10,background:'#F0C040',borderRadius:'50%',animation:'pulse 2s infinite',flexShrink:0}}/>
+          <h3 style={{flex:1,fontSize:'.93rem',fontWeight:700}}>Tuteur IA — Comptabilité</h3>
+          <button onClick={onClose} style={{width:28,height:28,borderRadius:'50%',border:'none',background:'#F0EEE8',cursor:'pointer',fontSize:'.93rem',display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
+        </div>
+        <div style={{padding:'.48rem 1.1rem',background:'#EEF2FF',fontSize:'.74rem',color:'#1A3370',borderBottom:'1px solid rgba(15,31,69,.12)'}}>
+          Contexte : {curChapter >= 0 ? `Chapitre ${curChapter+1} – ${CHAPTERS[curChapter].title}` : 'Vue générale'}
+        </div>
+        <div ref={msgsRef} style={{flex:1,overflowY:'auto',padding:'.85rem 1.1rem',display:'flex',flexDirection:'column',gap:'.6rem'}}>
+          {msgs.map((m,i) => (
+            <div key={i} style={{maxWidth:'88%',fontSize:'.84rem',lineHeight:1.6,padding:'.52rem .78rem',borderRadius:m.role==='user'?'12px 12px 2px 12px':'12px 12px 12px 2px',alignSelf:m.role==='user'?'flex-end':'flex-start',background:m.role==='user'?'#0F1F45':'#F0EEE8',color:m.role==='user'?'#fff':'#0F1F45'}}>
+              <span dangerouslySetInnerHTML={{__html: fmtText(m.text)}}/>
+            </div>
+          ))}
+          {loading && <div style={{maxWidth:'88%',fontSize:'.84rem',lineHeight:1.6,padding:'.52rem .78rem',borderRadius:'12px 12px 12px 2px',alignSelf:'flex-start',background:'#F0EEE8',color:'#6B7490',fontStyle:'italic'}}>En train de réfléchir…</div>}
+        </div>
+        <div style={{padding:'0 1.1rem .48rem',display:'flex',gap:5,flexWrap:'wrap'}}>
+          {qps.map(p=><button key={p} onClick={()=>send(p)} style={{padding:'.27rem .62rem',borderRadius:99,fontSize:'.71rem',border:'1px solid rgba(15,31,69,.12)',background:'#fff',cursor:'pointer',color:'#6B7490'}}>{p}</button>)}
+        </div>
+        <div style={{padding:'.62rem 1.1rem',borderTop:'1px solid rgba(15,31,69,.12)',display:'flex',gap:7}}>
+          <input ref={inputRef} value={input} onChange={e=>setInput(e.target.value)}
+            onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}}}
+            placeholder="Ta question…"
+            style={{flex:1,padding:'.52rem .75rem',border:'1.5px solid rgba(15,31,69,.12)',borderRadius:8,fontSize:'.84rem'}}/>
+          <button onClick={()=>send()} disabled={loading||!input.trim()}
+            style={{padding:'.52rem .85rem',background:'#E03028',border:'none',borderRadius:8,color:'#fff',fontWeight:600,cursor:'pointer',fontSize:'.84rem',opacity:loading||!input.trim()?.5:1,flexShrink:0}}>
+            Envoyer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════ APP PRINCIPALE ═══════════ */
+function App() {
+  const [page, setPage] = useState('home'); // 'home' | 'chapter'
+  const [curCh, setCurCh] = useState(-1);
+  const [curStep, setCurStep] = useState(0);
+  const [scores, setScores] = useState({});
+  const [quizAnswers, setQuizAnswers] = useState({});
+  const [showCorr, setShowCorr] = useState({});
+  const [answer, setAnswer] = useState({});
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMsg, setChatMsg] = useState('');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 769);
+  const bodyRef = useRef(null);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 769);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  const goHome = () => { setPage('home'); setSidebarOpen(false); };
+  const goChapter = (idx) => { setCurCh(idx); setCurStep(0); setPage('chapter'); setSidebarOpen(false); };
+  const goStep = (s) => { setCurStep(s); bodyRef.current?.scrollTo(0,0); };
+  const openChat = (msg='') => { setChatMsg(msg); setChatOpen(true); };
+
+  const totalDone = Object.values(scores).filter(s=>s>=2).length;
+  const progPct = Math.round(totalDone/7*100);
+
+  /* ── SIDEBAR CONTENT ── */
+  const SidebarContent = () => (
+    <div style={{background:'#0F1F45',display:'flex',flexDirection:'column',width:256,height:'100%',overflowY:'auto',flexShrink:0}}>
+      <div style={{padding:'1.4rem 1.2rem 1rem',borderBottom:'1px solid rgba(255,255,255,.08)',display:'flex',alignItems:'center',gap:10}}>
+        <div style={{width:34,height:34,background:'#E03028',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'Syne,sans-serif',fontWeight:800,color:'#fff',fontSize:'.9rem',flexShrink:0}}>PC</div>
+        <div>
+          <div style={{fontFamily:'Syne,sans-serif',fontWeight:700,color:'#fff',fontSize:'.97rem',lineHeight:1.2}}>Prof Compta IA</div>
+          <div style={{fontSize:'.67rem',color:'rgba(255,255,255,.4)'}}>Tuteur IA · L1/L2</div>
+        </div>
+      </div>
+      <div style={{padding:'.85rem 1.2rem',borderBottom:'1px solid rgba(255,255,255,.06)'}}>
+        <div style={{fontSize:'.67rem',color:'rgba(255,255,255,.4)',textTransform:'uppercase',letterSpacing:'.08em',marginBottom:'.4rem'}}>Progression</div>
+        <div style={{background:'rgba(255,255,255,.1)',borderRadius:99,height:4}}>
+          <div style={{background:'#F0C040',height:4,borderRadius:99,width:`${progPct}%`,transition:'width .5s'}}/>
+        </div>
+        <div style={{fontSize:'.77rem',color:'#F0C040',fontWeight:500,marginTop:'.3rem'}}>{progPct} %</div>
+      </div>
+      <nav style={{flex:1,padding:'.5rem .75rem'}}>
+        <div style={{fontSize:'.65rem',color:'rgba(255,255,255,.3)',textTransform:'uppercase',letterSpacing:'.1em',padding:'.65rem .7rem .3rem'}}>Navigation</div>
+        {[{id:'home',lbl:'Accueil',sub:'Vue d\'ensemble',num:'⌂'},...CHAPTERS.map(c=>({id:c.id,lbl:c.title,sub:c.subtitle,num:c.id+1}))].map(item=>{
+          const active = item.id==='home' ? page==='home' : page==='chapter'&&curCh===item.id;
+          const done = item.id!=='home' && scores[item.id]>=2;
+          return (
+            <button key={item.id} onClick={()=>item.id==='home'?goHome():goChapter(item.id)}
+              style={{display:'flex',alignItems:'center',gap:9,padding:'.52rem .72rem',borderRadius:8,cursor:'pointer',color:active?'#fff':'rgba(255,255,255,.6)',fontSize:'.82rem',marginBottom:2,transition:'all .15s',border:'none',background:active?'rgba(255,255,255,.12)':'none',width:'100%',textAlign:'left'}}>
+              <span style={{width:20,height:20,borderRadius:'50%',border:`1.5px solid ${active?'#E03028':done?'#2d8a4e':'rgba(255,255,255,.2)'}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:'.68rem',fontWeight:700,flexShrink:0,background:active?'#E03028':done?'#2d8a4e':'none',color:active||done?'#fff':'inherit'}}>
+                {done?'✓':item.num}
+              </span>
+              <span style={{flex:1,lineHeight:1.25}}>
+                {item.lbl}<span style={{fontSize:'.65rem',opacity:.5,display:'block'}}>{item.sub}</span>
+              </span>
+            </button>
+          );
+        })}
+      </nav>
+      <div style={{margin:'.75rem'}}>
+        <button onClick={()=>openChat()} style={{width:'100%',padding:'.7rem 1rem',background:'#E03028',border:'none',borderRadius:8,color:'#fff',fontFamily:'Syne,sans-serif',fontWeight:700,fontSize:'.82rem',cursor:'pointer',display:'flex',alignItems:'center',gap:8}}>
+          <span style={{width:8,height:8,background:'#F0C040',borderRadius:'50%',animation:'pulse 2s infinite',flexShrink:0}}/>
+          Tuteur IA — poser une question
+        </button>
+      </div>
+    </div>
+  );
+
+  /* ── HOME PAGE ── */
+  const HomePage = () => (
+    <div className="fade-in">
+      <div style={{background:'#0F1F45',padding:'2rem 1.5rem',position:'relative',overflow:'hidden'}}>
+        <div style={{position:'absolute',top:-50,right:-50,width:200,height:200,borderRadius:'50%',border:'32px solid rgba(255,255,255,.04)'}}/>
+        <div style={{fontSize:'.7rem',color:'#F0C040',letterSpacing:'.12em',textTransform:'uppercase',marginBottom:'.6rem'}}>Comptabilité Générale · Semestre complet</div>
+        <h1 style={{fontFamily:'Syne,sans-serif',fontWeight:800,fontSize:isMobile?'1.5rem':'1.9rem',color:'#fff',lineHeight:1.1,marginBottom:'.6rem'}}>Rattrape ton<br/><span style={{color:'#FF4D43'}}>semestre compta</span></h1>
+        <p style={{color:'rgba(255,255,255,.6)',fontSize:'.88rem',lineHeight:1.6,marginBottom:'1.25rem',maxWidth:420}}>7 chapitres · explications + analogies · exercices corrigés · quiz interactifs · tuteur IA</p>
+        <div style={{display:'flex',gap:'1.5rem'}}>
+          {[['7','Chapitres'],['21','Quiz'],['14','Exercices']].map(([n,l])=>(
+            <div key={l}><div style={{fontFamily:'Syne,sans-serif',fontWeight:800,fontSize:'1.5rem',color:'#fff'}}>{n}</div><div style={{fontSize:'.7rem',color:'rgba(255,255,255,.4)'}}>{l}</div></div>
+          ))}
+        </div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr 1fr':'repeat(auto-fill,minmax(190px,1fr))',gap:'.85rem',padding:'1.25rem 1.5rem'}}>
+        {CHAPTERS.map(ch => {
+          const sc = scores[ch.id], done = sc >= 2, pct = sc!=null ? Math.round(sc/3*100) : 0;
+          return (
+            <div key={ch.id} onClick={()=>goChapter(ch.id)}
+              style={{background:'#fff',borderRadius:12,border:`1px solid ${done?'#2d8a4e':'rgba(15,31,69,.12)'}`,padding:'1rem',cursor:'pointer',display:'flex',flexDirection:'column',gap:'.6rem',transition:'all .2s'}}>
+              <div style={{fontFamily:'Syne,sans-serif',fontWeight:800,fontSize:'.7rem',color:'#6B7490',letterSpacing:'.07em'}}>CHAPITRE {ch.id+1}</div>
+              <div style={{fontFamily:'Syne,sans-serif',fontWeight:700,fontSize:'.92rem',lineHeight:1.2}}>{ch.title}</div>
+              <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+                {ch.tags.map(t=><span key={t} style={{fontSize:'.64rem',padding:'.14rem .44rem',borderRadius:4,fontWeight:500,background:'#e8edf8',color:'#1A3370'}}>{t}</span>)}
+              </div>
+              <div style={{background:'#F0EEE8',borderRadius:99,height:3}}><div style={{background:'#E03028',height:3,borderRadius:99,width:`${pct}%`,transition:'width .4s'}}/></div>
+              <div style={{fontSize:'.71rem',color:done?'#2d8a4e':'#6B7490'}}>{sc==null?'· Non commencé':done?'✓ Maîtrisé':`· ${sc}/3 au quiz`}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  /* ── CHAPTER PAGE ── */
+  const ChapterPage = () => {
+    const ch = CHAPTERS[curCh];
+    const stepContent = () => {
+      if (curStep === 1 && (curCh === 3 || curCh === 6)) {
+        return (
+          <div style={S.card}>
+            <h3 style={{fontSize:'.95rem',fontWeight:700,marginBottom:'.7rem'}}>🧮 Calculateur {curCh===3?"d'amortissement":"FRNG / BFR / Trésorerie"}</h3>
+            {curCh===3 ? <AmortCalc/> : <FRNGCalc/>}
+          </div>
+        );
+      }
+      if (curStep === 0) return (
+        <div style={S.card}>
+          <h3 style={{fontSize:'.95rem',fontWeight:700,marginBottom:'.7rem'}}>📖 Concept</h3>
+          <Html html={CONCEPTS_HTML[curCh]}/>
+        </div>
+      );
+      if (curStep === 1) {
+        const an = ANALOGIES[curCh];
+        return (
+          <div style={S.card}>
+            <h3 style={{fontSize:'.95rem',fontWeight:700,marginBottom:'.7rem'}}>💡 Analogie — {an?.title}</h3>
+            <div style={{background:'#FFF3E0',borderLeft:'3px solid #E03028',borderRadius:'0 8px 8px 0',padding:'.9rem',fontSize:'.88rem',lineHeight:1.65}}>
+              <div style={{fontSize:'.67rem',fontWeight:700,color:'#E03028',textTransform:'uppercase',letterSpacing:'.07em',marginBottom:'.35rem'}}>Analogie</div>
+              <Html html={an?.body||''}/>
+            </div>
+          </div>
+        );
+      }
+      if (curStep === 2) {
+        const ex = EXERCISES[curCh];
+        const corrKey = `ch${curCh}`;
+        return (
+          <div style={S.card}>
+            <h3 style={{fontSize:'.95rem',fontWeight:700,marginBottom:'.7rem'}}>✏️ Exercice</h3>
+            <p style={{fontSize:'.88rem',lineHeight:1.6,marginBottom:'.75rem'}}>{ex.instr}</p>
+            <div style={{background:'#F0EEE8',borderRadius:8,padding:'.8rem',fontSize:'.84rem',lineHeight:1.8,marginBottom:'.8rem'}}>
+              {ex.data.split('\n').map((l,i)=><span key={i}>{l}<br/></span>)}
+            </div>
+            <textarea value={answer[corrKey]||''} onChange={e=>setAnswer(p=>({...p,[corrKey]:e.target.value}))}
+              placeholder="Écris ta réponse ici…"
+              style={{width:'100%',minHeight:82,padding:'.62rem',border:'1.5px solid rgba(15,31,69,.12)',borderRadius:8,fontSize:'.84rem',lineHeight:1.5,resize:'vertical'}}/>
+            <div style={{display:'flex',gap:7,flexWrap:'wrap',marginTop:'.75rem'}}>
+              <Btn variant="danger" size="sm" onClick={()=>setShowCorr(p=>({...p,[corrKey]:!p[corrKey]}))}>
+                {showCorr[corrKey]?'Masquer la correction':'Voir la correction'}
+              </Btn>
+              <Btn variant="outline" size="sm" onClick={()=>openChat(`Aide-moi avec l'exercice du chapitre ${curCh+1} : ${ex.instr}`)}>
+                Aide du tuteur IA ↗
+              </Btn>
+            </div>
+            {showCorr[corrKey] && (
+              <div style={{background:'#E4F5EC',border:'1px solid #a5d9b8',borderRadius:8,padding:'1rem',marginTop:'.75rem',fontSize:'.84rem',lineHeight:1.7}}>
+                <h4 style={{color:'#1a5c35',fontFamily:'Syne,sans-serif',fontSize:'.87rem',marginBottom:'.65rem'}}>✅ Correction</h4>
+                <Html html={ex.corr}/>
+              </div>
+            )}
+          </div>
+        );
+      }
+      if (curStep === 3) {
+        return (
+          <div style={S.card}>
+            <h3 style={{fontSize:'.95rem',fontWeight:700,marginBottom:'1rem'}}>🎯 Quiz — Chapitre {curCh+1}</h3>
+            <QuizPanel
+              chIdx={curCh}
+              savedAnswers={quizAnswers[curCh]}
+              onAnswer={ans=>setQuizAnswers(p=>({...p,[curCh]:ans}))}
+              onDone={ans=>{
+                const sc = Object.keys(ans).filter(qi=>ans[qi]===QUIZ_DATA[curCh][qi].a).length;
+                setScores(p=>({...p,[curCh]:sc}));
+              }}
+            />
+          </div>
+        );
+      }
+    };
+
+    return (
+      <div className="fade-in" style={{minHeight:'100%'}}>
+        <div style={{padding:'1.1rem 1.4rem 1rem',borderBottom:'1px solid rgba(15,31,69,.12)',background:'#fff',position:'sticky',top:0,zIndex:5}}>
+          <span onClick={goHome} style={{fontSize:'.75rem',color:'#6B7490',cursor:'pointer',marginBottom:'.35rem',display:'inline-block'}}>← Accueil</span>
+          <h2 style={{fontFamily:'Syne,sans-serif',fontWeight:800,fontSize:isMobile?'1.05rem':'1.2rem',lineHeight:1.2}}>{`Ch.${curCh+1} · ${ch.title}`}</h2>
+          <p style={{fontSize:'.84rem',color:'#6B7490',marginTop:'.28rem'}}>{ch.desc||ch.subtitle}</p>
+          <div style={{display:'flex',gap:4,marginTop:'.8rem',flexWrap:'wrap'}}>
+            {ch.steps.map((s,i)=>{
+              const active = i===curStep, done = i<curStep;
+              return (
+                <button key={i} onClick={()=>goStep(i)}
+                  style={{padding:'.33rem .82rem',borderRadius:99,fontSize:'.77rem',fontWeight:500,border:`1.5px solid ${active?'#0F1F45':done?'#a5d9b8':'rgba(15,31,69,.15)'}`,background:active?'#0F1F45':done?'#e4f5ec':'#fff',cursor:'pointer',color:active?'#fff':done?'#1a5c35':'#6B7490',transition:'all .15s'}}>
+                  {i+1}. {s}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div style={{padding:'1.1rem 1.4rem',maxWidth:840}}>
+          {stepContent()}
+          <div style={{display:'flex',gap:7,flexWrap:'wrap',marginTop:'.5rem',paddingBottom:'2rem'}}>
+            {curStep > 0 && <Btn variant="outline" size="sm" onClick={()=>goStep(curStep-1)}>← Retour</Btn>}
+            {curStep < ch.steps.length-1 && <Btn onClick={()=>goStep(curStep+1)}>Suivant →</Btn>}
+            {curStep === ch.steps.length-1 && curCh < 6 && <Btn onClick={()=>goChapter(curCh+1)}>Chapitre suivant →</Btn>}
+            {curStep === ch.steps.length-1 && curCh === 6 && <Btn onClick={goHome}>Tableau de bord →</Btn>}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  /* ── RENDER ── */
+  return (
+    <div style={{display:'flex',height:'100vh',overflow:'hidden',flexDirection:'column'}}>
+      {/* Mobile Header */}
+      {isMobile && (
+        <header style={{background:'#0F1F45',padding:'.8rem 1rem',display:'flex',alignItems:'center',gap:10,flexShrink:0,zIndex:60}}>
+          <button onClick={()=>setSidebarOpen(true)} style={{width:36,height:36,borderRadius:8,border:'none',background:'rgba(255,255,255,.12)',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.1rem'}}>☰</button>
+          <div style={{fontFamily:'Syne,sans-serif',fontWeight:800,color:'#fff',fontSize:'.95rem',flex:1}}>Prof Compta IA</div>
+          <button onClick={()=>openChat()} style={{width:36,height:36,borderRadius:8,border:'none',background:'#E03028',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1rem'}}>💬</button>
+        </header>
+      )}
+
+      <div style={{display:'flex',flex:1,overflow:'hidden'}}>
+        {/* Desktop Sidebar */}
+        {!isMobile && <SidebarContent/>}
+
+        {/* Mobile Sidebar Overlay */}
+        {isMobile && sidebarOpen && (
+          <>
+            <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.5)',zIndex:99}} onClick={()=>setSidebarOpen(false)}/>
+            <div style={{position:'fixed',top:0,left:0,bottom:0,zIndex:100,display:'flex'}}>
+              <SidebarContent/>
+            </div>
+          </>
+        )}
+
+        {/* Main Content */}
+        <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+          {!isMobile && (
+            <div style={{background:'#fff',borderBottom:'1px solid rgba(15,31,69,.12)',padding:'.7rem 1.4rem',display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
+              <div style={{fontFamily:'Syne,sans-serif',fontWeight:700,fontSize:'.95rem',flex:1}}>
+                {page==='home' ? 'Accueil' : curCh>=0 ? CHAPTERS[curCh].title : ''}
+              </div>
+              {page==='chapter' && curCh>=0 && (
+                <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
+                  {CHAPTERS[curCh].tags.map(t=><span key={t} style={{padding:'.2rem .6rem',borderRadius:99,fontSize:'.7rem',fontWeight:500,background:'#F0EEE8',color:'#6B7490',border:'1px solid rgba(15,31,69,.1)'}}>{t}</span>)}
+                </div>
+              )}
+            </div>
+          )}
+          <div ref={bodyRef} style={{flex:1,overflowY:'auto'}}>
+            {page==='home' ? <HomePage/> : <ChapterPage/>}
+          </div>
+        </div>
+      </div>
+
+      <ChatModal isOpen={chatOpen} onClose={()=>setChatOpen(false)} curChapter={curCh} initialMsg={chatMsg}/>
+    </div>
+  );
+}
+
+ReactDOM.render(<App/>, document.getElementById('root'));
+</script>
+</body>
+</html>
